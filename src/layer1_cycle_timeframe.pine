@@ -1,0 +1,197 @@
+//@version=5
+indicator("Quarterly Theory - Layer 1: Cycle & Timeframe Mapping", overlay=true)
+
+// ============================================================================
+// LAYER 1: CYCLE & TIMEFRAME MAPPING
+// ============================================================================
+// Foundation layer for mapping market cycles to timeframes
+// Establishes the core structure for quarterly analysis
+// ============================================================================
+
+// Configuration
+input_tf_daily = input.timeframe("D", title="Daily Timeframe")
+input_tf_weekly = input.timeframe("W", title="Weekly Timeframe")
+input_tf_monthly = input.timeframe("M", title="Monthly Timeframe")
+
+// Cycle Detection Settings
+enable_daily_cycle = input(true, title="Enable Daily Cycle Detection")
+enable_weekly_cycle = input(true, title="Enable Weekly Cycle Detection")
+enable_monthly_cycle = input(true, title="Enable Monthly Cycle Detection")
+
+// ============================================================================
+// TIMEFRAME DATA RETRIEVAL
+// ============================================================================
+
+// Request Daily Timeframe Data
+daily_open = request.security(syminfo.tickerid, input_tf_daily, open)
+daily_high = request.security(syminfo.tickerid, input_tf_daily, high)
+daily_low = request.security(syminfo.tickerid, input_tf_daily, low)
+daily_close = request.security(syminfo.tickerid, input_tf_daily, close)
+daily_volume = request.security(syminfo.tickerid, input_tf_daily, volume)
+
+// Request Weekly Timeframe Data
+weekly_open = request.security(syminfo.tickerid, input_tf_weekly, open)
+weekly_high = request.security(syminfo.tickerid, input_tf_weekly, high)
+weekly_low = request.security(syminfo.tickerid, input_tf_weekly, low)
+weekly_close = request.security(syminfo.tickerid, input_tf_weekly, close)
+weekly_volume = request.security(syminfo.tickerid, input_tf_weekly, volume)
+
+// Request Monthly Timeframe Data
+monthly_open = request.security(syminfo.tickerid, input_tf_monthly, open)
+monthly_high = request.security(syminfo.tickerid, input_tf_monthly, high)
+monthly_low = request.security(syminfo.tickerid, input_tf_monthly, low)
+monthly_close = request.security(syminfo.tickerid, input_tf_monthly, close)
+monthly_volume = request.security(syminfo.tickerid, input_tf_monthly, volume)
+
+// ============================================================================
+// CYCLE STRUCTURE DEFINITIONS
+// ============================================================================
+
+// Daily Cycle: Intraday price movements within a single trading session
+f_daily_cycle_status() =>
+    cycle_high = ta.highest(daily_high, 5)
+    cycle_low = ta.lowest(daily_low, 5)
+    cycle_midpoint = (cycle_high + cycle_low) / 2
+    cycle_range = cycle_high - cycle_low
+    [cycle_high, cycle_low, cycle_midpoint, cycle_range]
+
+// Weekly Cycle: Price action across 5 trading days
+f_weekly_cycle_status() =>
+    cycle_high = ta.highest(weekly_high, 4)
+    cycle_low = ta.lowest(weekly_low, 4)
+    cycle_midpoint = (cycle_high + cycle_low) / 2
+    cycle_range = cycle_high - cycle_low
+    [cycle_high, cycle_low, cycle_midpoint, cycle_range]
+
+// Monthly Cycle: Price action across the full month
+f_monthly_cycle_status() =>
+    cycle_high = ta.highest(monthly_high, 3)
+    cycle_low = ta.lowest(monthly_low, 3)
+    cycle_midpoint = (cycle_high + cycle_low) / 2
+    cycle_range = cycle_high - cycle_low
+    [cycle_high, cycle_low, cycle_midpoint, cycle_range]
+
+// ============================================================================
+// CYCLE CALCULATIONS
+// ============================================================================
+
+[daily_h, daily_l, daily_mid, daily_rng] = f_daily_cycle_status()
+[weekly_h, weekly_l, weekly_mid, weekly_rng] = f_weekly_cycle_status()
+[monthly_h, monthly_l, monthly_mid, monthly_rng] = f_monthly_cycle_status()
+
+// ============================================================================
+// TIMEFRAME ALIGNMENT DETECTION
+// ============================================================================
+
+// Detect if timeframes are in alignment (Higher Timeframe Trend Confirmation)
+f_htf_alignment() =>
+    daily_uptrend = daily_close > daily_mid
+    weekly_uptrend = weekly_close > weekly_mid
+    monthly_uptrend = monthly_close > monthly_mid
+    
+    daily_downtrend = daily_close < daily_mid
+    weekly_downtrend = weekly_close < weekly_mid
+    monthly_downtrend = monthly_close < monthly_mid
+    
+    // Alignment state
+    aligned_bullish = daily_uptrend and weekly_uptrend and monthly_uptrend
+    aligned_bearish = daily_downtrend and weekly_downtrend and monthly_downtrend
+    mixed_signal = not aligned_bullish and not aligned_bearish
+    
+    [aligned_bullish, aligned_bearish, mixed_signal]
+
+[bull_align, bear_align, mixed] = f_htf_alignment()
+
+// ============================================================================
+// CYCLE MOMENTUM CALCULATION
+// ============================================================================
+
+// Calculate momentum for each timeframe
+daily_momentum = ta.momentum(daily_close, 5)
+weekly_momentum = ta.momentum(weekly_close, 4)
+monthly_momentum = ta.momentum(monthly_close, 3)
+
+// ============================================================================
+// VISUALIZATION
+// ============================================================================
+
+// Daily Cycle Visualization
+plot(enable_daily_cycle ? daily_h : na, title="Daily High", color=color.blue, linewidth=1, style=plot.style_line)
+plot(enable_daily_cycle ? daily_l : na, title="Daily Low", color=color.blue, linewidth=1, style=plot.style_line)
+plot(enable_daily_cycle ? daily_mid : na, title="Daily Midpoint", color=color.new(color.blue, 50), linewidth=1, style=plot.style_dashed)
+
+// Weekly Cycle Visualization
+plot(enable_weekly_cycle ? weekly_h : na, title="Weekly High", color=color.orange, linewidth=2, style=plot.style_line)
+plot(enable_weekly_cycle ? weekly_l : na, title="Weekly Low", color=color.orange, linewidth=2, style=plot.style_line)
+plot(enable_weekly_cycle ? weekly_mid : na, title="Weekly Midpoint", color=color.new(color.orange, 50), linewidth=1, style=plot.style_dashed)
+
+// Monthly Cycle Visualization
+plot(enable_monthly_cycle ? monthly_h : na, title="Monthly High", color=color.red, linewidth=2, style=plot.style_line)
+plot(enable_monthly_cycle ? monthly_l : na, title="Monthly Low", color=color.red, linewidth=2, style=plot.style_line)
+plot(enable_monthly_cycle ? monthly_mid : na, title="Monthly Midpoint", color=color.new(color.red, 50), linewidth=1, style=plot.style_dashed)
+
+// ============================================================================
+// ALERTS & SIGNALS
+// ============================================================================
+
+// Generate background color based on alignment
+bgcolor_value = bull_align ? color.new(color.green, 80) : bear_align ? color.new(color.red, 80) : color.new(color.gray, 90)
+bgcolor(bgcolor_value)
+
+// Alert conditions
+if enable_daily_cycle and ta.crossover(daily_close, daily_mid)
+    alert("Daily Cycle: Bullish Crossover")
+
+if enable_daily_cycle and ta.crossunder(daily_close, daily_mid)
+    alert("Daily Cycle: Bearish Crossover")
+
+if enable_weekly_cycle and ta.crossover(weekly_close, weekly_mid)
+    alert("Weekly Cycle: Bullish Crossover")
+
+if enable_weekly_cycle and ta.crossunder(weekly_close, weekly_mid)
+    alert("Weekly Cycle: Bearish Crossover")
+
+if enable_monthly_cycle and ta.crossover(monthly_close, monthly_mid)
+    alert("Monthly Cycle: Bullish Crossover")
+
+if enable_monthly_cycle and ta.crossunder(monthly_close, monthly_mid)
+    alert("Monthly Cycle: Bearish Crossover")
+
+// ============================================================================
+// TABLE DISPLAY: CYCLE STATUS
+// ============================================================================
+
+var table status_table = table.new(position=position.top_right, columns=4, rows=4, bgcolor=color.new(color.black, 80), border_color=color.white, border_width=1)
+
+table.cell(status_table, 0, 0, "Timeframe", text_color=color.white, text_size=size.small, bgcolor=color.navy)
+table.cell(status_table, 1, 0, "Status", text_color=color.white, text_size=size.small, bgcolor=color.navy)
+table.cell(status_table, 2, 0, "Range", text_color=color.white, text_size=size.small, bgcolor=color.navy)
+table.cell(status_table, 3, 0, "Momentum", text_color=color.white, text_size=size.small, bgcolor=color.navy)
+
+// Daily Row
+daily_status = daily_close > daily_mid ? "UP" : "DOWN"
+daily_status_color = daily_close > daily_mid ? color.green : color.red
+table.cell(status_table, 0, 1, "Daily", text_color=color.white, text_size=size.small)
+table.cell(status_table, 1, 1, daily_status, text_color=daily_status_color, text_size=size.small)
+table.cell(status_table, 2, 1, str.tostring(daily_rng, "#.00"), text_color=color.white, text_size=size.small)
+table.cell(status_table, 3, 1, str.tostring(daily_momentum, "+#.00"), text_color=color.white, text_size=size.small)
+
+// Weekly Row
+weekly_status = weekly_close > weekly_mid ? "UP" : "DOWN"
+weekly_status_color = weekly_close > weekly_mid ? color.green : color.red
+table.cell(status_table, 0, 2, "Weekly", text_color=color.white, text_size=size.small)
+table.cell(status_table, 1, 2, weekly_status, text_color=weekly_status_color, text_size=size.small)
+table.cell(status_table, 2, 2, str.tostring(weekly_rng, "#.00"), text_color=color.white, text_size=size.small)
+table.cell(status_table, 3, 2, str.tostring(weekly_momentum, "+#.00"), text_color=color.white, text_size=size.small)
+
+// Monthly Row
+monthly_status = monthly_close > monthly_mid ? "UP" : "DOWN"
+monthly_status_color = monthly_close > monthly_mid ? color.green : color.red
+table.cell(status_table, 0, 3, "Monthly", text_color=color.white, text_size=size.small)
+table.cell(status_table, 1, 3, monthly_status, text_color=monthly_status_color, text_size=size.small)
+table.cell(status_table, 2, 3, str.tostring(monthly_rng, "#.00"), text_color=color.white, text_size=size.small)
+table.cell(status_table, 3, 3, str.tostring(monthly_momentum, "+#.00"), text_color=color.white, text_size=size.small)
+
+// ============================================================================
+// END LAYER 1
+// ============================================================================
